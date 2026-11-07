@@ -1,0 +1,82 @@
+[project]
+name = "video-tool"
+version = "0.1.0"
+description = "Desktop tool for trimming video files into named clips."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "moviepy>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "nicegui[native]>=3.17.1",
+    "plyer>=2.1.0",
+    # pywebview>=6.2 has a regression breaking NiceGUI's native-mode drag&drop
+    # binding (window.dom.document.events.drop -> TypeError: 'NoneType' is not
+    # iterable), which cascades into the Vue bundle failing to load. Pin below
+    # that until upstream fixes it.
+    "pywebview<6.2",
+]
+
+[project.scripts]
+vtool = "main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-mock>=3.0.0",
+    "pytest-asyncio>=1.0.0",
+    "ruff>=0.16.0",
+    "mypy>=2.0.0",
+    "import-linter>=2.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["domain", "application", "infrastructure", "presentation"]
+include = ["main.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["moviepy.*", "proglog.*", "nicegui.*", "plyer.*"]
+ignore_missing_imports = true
+
+[tool.importlinter]
+root_packages = ["domain", "application", "infrastructure", "presentation"]
+
+[[tool.importlinter.contracts]]
+name = "Clean Architecture layers"
+type = "layers"
+layers = [
+    "presentation",
+    "infrastructure",
+    "application",
+    "domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain does not depend on anything project-internal"
+type = "forbidden"
+source_modules = ["domain"]
+forbidden_modules = ["application", "infrastructure", "presentation"]
+

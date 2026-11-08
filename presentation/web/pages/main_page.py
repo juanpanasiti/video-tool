@@ -258,6 +258,8 @@ def form_panel() -> None:
     ).classes("w-full")
 
     async def _current_player_time() -> float:
+        if video_player is None:
+            return 0.0
         result = await ui.run_javascript(f"getHtmlElement({video_player.id}).currentTime")
         return float(result or 0.0)
 

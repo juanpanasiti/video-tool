@@ -9,6 +9,7 @@ import asyncio
 import importlib.util
 import os
 import sys
+from pathlib import Path
 
 from nicegui import app, ui
 
@@ -29,6 +30,9 @@ from presentation.web.state import AppState
 
 _state: AppState | None = None
 _worker: QueueWorker | None = None
+_ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+_ICON_PNG = _ASSETS_DIR / "icon.png"
+_ICON_ICO = _ASSETS_DIR / "icon.ico"
 
 
 def get_state() -> AppState:
@@ -43,6 +47,15 @@ def get_worker() -> QueueWorker:
     if _worker is None:
         raise RuntimeError("QueueWorker has not been initialised; call run() first.")
     return _worker
+
+
+def _resolve_app_icon() -> Path | None:
+    """Return the platform-appropriate icon file if bundled."""
+    if sys.platform == "win32" and _ICON_ICO.exists():
+        return _ICON_ICO
+    if _ICON_PNG.exists():
+        return _ICON_PNG
+    return None
 
 
 def _configure_linux_webview_backend() -> None:
@@ -88,9 +101,12 @@ def run(
 
     if native:
         _configure_linux_webview_backend()
+        if sys.platform == "linux" and _ICON_PNG.exists():
+            app.native.start_args.setdefault("icon", str(_ICON_PNG))
 
     ui.run(
         title="Video Tool",
+        favicon=_resolve_app_icon(),
         native=native,
         window_size=(1100, 800),
         reload=False,

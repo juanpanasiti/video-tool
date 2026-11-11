@@ -20,7 +20,7 @@ from application.ports import (
     IVideoRepository,
 )
 from application.use_cases.process_clip_job import ProcessClipJob
-from domain.models import AppConfig
+from domain.models import AppConfig, UserPreferences
 from presentation.web.queue_worker import QueueWorker
 from presentation.web.state import AppState
 
@@ -52,6 +52,7 @@ def run(
     thumbnailer: IThumbnailer,
     video_metadata: IVideoMetadata,
     concatenator: IConcatenator,
+    preferences: UserPreferences | None = None,
 ) -> None:
     """Wire dependencies and launch the NiceGUI native window."""
     global _state, _worker
@@ -65,7 +66,7 @@ def run(
         thumbnailer=thumbnailer,
         video_metadata=video_metadata,
         concatenator=concatenator,
-        preferences=preferences_store.load(),
+        preferences=preferences if preferences is not None else preferences_store.load(),
     )
     _worker = QueueWorker(_state, ProcessClipJob(clipper=clipper, extractor=audio_extractor))
 

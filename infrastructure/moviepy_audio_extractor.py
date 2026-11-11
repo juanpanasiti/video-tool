@@ -45,6 +45,7 @@ class MoviePyAudioExtractor(IAudioExtractor):
                 subclip = clip.subclipped(interval.start_seconds, interval.end_seconds)
 
                 _BITRATE_BY_QUALITY: dict[Quality, str] = {
+                    Quality.ORIGINAL: "320k",
                     Quality.HIGH: "320k",
                     Quality.MEDIUM: "192k",
                     Quality.LOW: "128k",

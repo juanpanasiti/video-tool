@@ -23,13 +23,15 @@ from domain.exceptions import (
 class Quality(StrEnum):
     """Encoding quality preset for video and audio conversions."""
 
-    HIGH = "high"    # CRF 18 / 320 kbps audio — large file, best quality
-    MEDIUM = "medium"  # CRF 24 / 192 kbps audio — balanced (default)
-    LOW = "low"      # CRF 30 / 128 kbps audio — small file, lower quality
+    ORIGINAL = "original"  # Direct stream copy without re-encoding (lossless)
+    HIGH = "high"          # CRF 18 / 320 kbps audio — large file, best quality
+    MEDIUM = "medium"      # CRF 24 / 192 kbps audio — balanced (default)
+    LOW = "low"            # CRF 30 / 128 kbps audio — small file, lower quality
 
 # ---------------------------------------------------------------------------
 # Time helpers
 # ---------------------------------------------------------------------------
+
 
 # Accepts: SS  |  MM:SS or MM.SS  |  HH:MM:SS or HH.MM.SS
 _TIME_PATTERN = re.compile(r"^\d+(?:[:.\.]\d+){0,2}$")

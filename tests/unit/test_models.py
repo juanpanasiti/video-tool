@@ -151,3 +151,10 @@ class TestAppConfig:
 def test_job_status_values() -> None:
     assert JobStatus.PENDING == "pending"
     assert JobStatus.DONE == "done"
+
+
+def test_quality_values() -> None:
+    assert Quality.ORIGINAL == "original"
+    assert Quality.HIGH == "high"
+    assert Quality.MEDIUM == "medium"
+    assert Quality.LOW == "low"

@@ -18,7 +18,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from domain.exceptions import SourceFolderNotFoundError
-from domain.models import AppConfig
+from domain.models import AppConfig, UserPreferences
 from infrastructure.json_preferences_store import JsonPreferencesStore
 from infrastructure.logging_config import configure_logging
 from infrastructure.moviepy_audio_extractor import MoviePyAudioExtractor
@@ -54,20 +54,46 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_config(args: argparse.Namespace) -> AppConfig:
+def load_config(
+    args: argparse.Namespace,
+    preferences: UserPreferences | None = None,
+) -> AppConfig:
     """Resolve and validate application configuration.
 
-    Priority for each path: CLI argument > environment variable > built-in default.
+    Priority for each path: CLI argument > environment variable > preferences > built-in default.
     SOURCE defaults to the current working directory.
     TARGET defaults to <source>/output and is created automatically if absent.
     """
     load_dotenv()
 
-    source_str = args.source or os.getenv("SOURCE", "").strip() or str(Path.cwd())
-    target_str = args.target or os.getenv("TARGET", "").strip()
+    # Source resolution: CLI > ENV > preferences (if directory exists) > cwd
+    source: Path
+    using_pref_source = False
+    if args.source:
+        source = Path(args.source).resolve()
+    elif env_source := os.getenv("SOURCE", "").strip():
+        source = Path(env_source).resolve()
+    elif preferences and preferences.last_source and preferences.last_source.is_dir():
+        source = preferences.last_source.resolve()
+        using_pref_source = True
+    else:
+        if preferences and preferences.last_source and not preferences.last_source.is_dir():
+            logger.warning(
+                "Configured last_source '%s' does not exist or is not a directory; falling back to cwd",
+                preferences.last_source,
+            )
+        source = Path.cwd().resolve()
 
-    source = Path(source_str).resolve()
-    target = Path(target_str).resolve() if target_str else source / "output"
+    # Target resolution: CLI > ENV > preferences (when source came from preferences) > <source>/output
+    target: Path
+    if args.target:
+        target = Path(args.target).resolve()
+    elif env_target := os.getenv("TARGET", "").strip():
+        target = Path(env_target).resolve()
+    elif using_pref_source and preferences and preferences.last_target:
+        target = preferences.last_target.resolve()
+    else:
+        target = (source / "output").resolve()
 
     # Auto-create target so AppConfig validation passes and clips have somewhere to land.
     target.mkdir(parents=True, exist_ok=True)
@@ -90,13 +116,15 @@ def main() -> None:
     log_file = configure_logging()
     logger.info("Starting video-tool (log file: %s)", log_file)
     args = _parse_args()
-    config = load_config(args)
 
     # Wire infrastructure
+    preferences_store = JsonPreferencesStore()
+    preferences = preferences_store.load()
+    config = load_config(args, preferences=preferences)
+
     repository = VideoRepository()
     clipper = MoviePyClipper()
     audio_extractor = MoviePyAudioExtractor()
-    preferences_store = JsonPreferencesStore()
     notifier = PlyerNotifier()
     thumbnailer = MoviePyThumbnailer()
     video_metadata = MoviePyVideoMetadata()
@@ -113,6 +141,7 @@ def main() -> None:
             thumbnailer=thumbnailer,
             video_metadata=video_metadata,
             concatenator=concatenator,
+            preferences=preferences,
         )
     except KeyboardInterrupt:
         # asyncio/uvicorn re-raise this on Ctrl+C after internally cancelling the

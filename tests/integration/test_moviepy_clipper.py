@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from domain.models import ClipInterval
+from domain.models import ClipInterval, Quality
 from infrastructure.moviepy_clipper import MoviePyClipper
 from infrastructure.video_repository import VideoRepository
 
@@ -170,3 +170,47 @@ def test_cut_as_gif_produces_valid_gif_file(sample_video: Path, tmp_path: Path) 
     assert result.output_path.suffix == ".gif"
     assert result.output_path.exists()
     assert result.output_path.stat().st_size > 0
+
+
+def test_cut_respects_quality_presets(sample_video: Path, tmp_path: Path) -> None:
+    video = VideoRepository().list_videos(sample_video.parent)[0]
+    target = tmp_path / "out"
+    target.mkdir()
+
+    res_high = MoviePyClipper().cut(
+        video=video,
+        interval=ClipInterval(start="00:00:00", end="1", title="high", quality=Quality.HIGH),
+        target=target,
+    )
+    res_low = MoviePyClipper().cut(
+        video=video,
+        interval=ClipInterval(start="00:00:00", end="1", title="low", quality=Quality.LOW),
+        target=target,
+    )
+
+    assert res_high.success, res_high.error
+    assert res_low.success, res_low.error
+    assert res_high.output_path.stat().st_size > res_low.output_path.stat().st_size
+
+
+def test_cut_original_quality_produces_valid_video(sample_video: Path, tmp_path: Path) -> None:
+    video = VideoRepository().list_videos(sample_video.parent)[0]
+    target = tmp_path / "out"
+    target.mkdir()
+    progress_called = False
+
+    def on_progress(cur: float, tot: float) -> None:
+        nonlocal progress_called
+        progress_called = True
+
+    result = MoviePyClipper().cut(
+        video=video,
+        interval=ClipInterval(start="00:00:00", end="00:00:01", title="orig", quality=Quality.ORIGINAL),
+        target=target,
+        on_progress=on_progress,
+    )
+
+    assert result.success, result.error
+    assert result.output_path.exists()
+    assert result.output_path.stat().st_size > 0
+    assert progress_called

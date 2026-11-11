@@ -15,3 +15,6 @@ wheels/
 # Temps
 *.mp4
 *.mp3
+
+# Pyenv
+.python-version

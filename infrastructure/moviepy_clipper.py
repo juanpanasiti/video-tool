@@ -10,7 +10,7 @@ from proglog import ProgressBarLogger
 
 from application.ports import IClipper
 from domain.exceptions import ClipProcessingError
-from domain.models import ClipInterval, ClipResult, VideoFile
+from domain.models import ClipInterval, ClipResult, Quality, VideoFile
 from infrastructure.filename_utils import escape_ffmpeg_filter_path, sanitize_filename
 
 logger = logging.getLogger("video_tool.moviepy_clipper")
@@ -68,20 +68,84 @@ class MoviePyClipper(IClipper):
             from moviepy import VideoFileClip, afx, vfx
 
             with VideoFileClip(str(video.path)) as clip:
+                if interval.start_seconds >= clip.duration:
+                    raise ValueError(
+                        f"Start time ({interval.start_seconds:.2f}s) should be smaller "
+                        f"than clip's duration ({clip.duration:.2f}s)."
+                    )
+                if interval.end_seconds is not None and interval.end_seconds > clip.duration:
+                    raise ValueError(
+                        f"End time ({interval.end_seconds:.2f}s) should be smaller or equal "
+                        f"to clip's duration ({clip.duration:.2f}s)."
+                    )
+
+                has_effects = bool(
+                    interval.fade_in_seconds > 0
+                    or interval.fade_out_seconds > 0
+                    or interval.watermark_text
+                    or (interval.burn_subtitles and video.path.with_suffix(".srt").exists())
+                )
+
+                if (
+                    interval.quality == Quality.ORIGINAL
+                    and not interval.audio_only
+                    and not interval.as_gif
+                    and not has_effects
+                ):
+                    import subprocess
+
+                    import imageio_ffmpeg
+
+                    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+                    cmd: list[str] = [ffmpeg_exe, "-y"]
+                    if interval.start_seconds > 0:
+                        cmd.extend(["-ss", str(interval.start_seconds)])
+                    if interval.end_seconds is not None:
+                        cmd.extend(["-to", str(interval.end_seconds)])
+                    cmd.extend([
+                        "-i", str(video.path),
+                        "-c", "copy",
+                        "-avoid_negative_ts", "make_zero",
+                        str(output_path),
+                    ])
+                    proc = subprocess.run(cmd, capture_output=True, text=True)
+                    if proc.returncode != 0:
+                        raise RuntimeError(f"FFmpeg stream copy failed: {proc.stderr}")
+                    if on_progress is not None:
+                        on_progress(1.0, 1.0)
+                    return ClipResult(
+                        title=interval.title,
+                        output_path=output_path,
+                        success=True,
+                    )
+
                 infos = clip.reader.infos
                 decoder_codec = infos.get("video_codec", "")
                 codec = _CODEC_MAP.get(decoder_codec, "libx264")
 
-                audio_bitrate_bps: int | None = infos.get("audio_bitrate")
-                audio_bitrate = f"{audio_bitrate_bps // 1000}k" if audio_bitrate_bps else None
+                _CRF_BY_QUALITY: dict[Quality, str] = {
+                    Quality.ORIGINAL: "18",
+                    Quality.HIGH: "18",
+                    Quality.MEDIUM: "24",
+                    Quality.LOW: "30",
+                }
+                _AUDIO_BITRATE_BY_QUALITY: dict[Quality, str] = {
+                    Quality.ORIGINAL: "320k",
+                    Quality.HIGH: "320k",
+                    Quality.MEDIUM: "192k",
+                    Quality.LOW: "128k",
+                }
 
-                # Always use CRF-based encoding for consistent quality regardless of source.
+                crf = _CRF_BY_QUALITY[interval.quality]
+                audio_bitrate = _AUDIO_BITRATE_BY_QUALITY[interval.quality]
+
+                # Use CRF-based encoding for consistent quality based on the selected preset.
                 _CRF_MAP: dict[str, list[str]] = {
-                    "libx264": ["-crf", "24"],
-                    "libx265": ["-x265-params", "crf=24"],
-                    "libvpx": ["-crf", "24", "-b:v", "0"],
-                    "libvpx-vp9": ["-crf", "24", "-b:v", "0"],
-                    "libaom-av1": ["-crf", "24", "-b:v", "0"],
+                    "libx264": ["-crf", crf],
+                    "libx265": ["-x265-params", f"crf={crf}"],
+                    "libvpx": ["-crf", crf, "-b:v", "0"],
+                    "libvpx-vp9": ["-crf", crf, "-b:v", "0"],
+                    "libaom-av1": ["-crf", crf, "-b:v", "0"],
                 }
                 ffmpeg_params: list[str] | None = _CRF_MAP.get(codec)
 
@@ -103,7 +167,7 @@ class MoviePyClipper(IClipper):
                     audio.write_audiofile(
                         str(output_path),
                         codec="libmp3lame",
-                        bitrate=audio_bitrate or "192k",
+                        bitrate=audio_bitrate,
                         logger=None,
                     )
                 else:

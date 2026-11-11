@@ -38,6 +38,7 @@ from presentation.web.app import get_state, get_worker
 logger = logging.getLogger("video_tool.main_page")
 
 _QUALITY_LABELS: dict[Quality, str] = {
+    Quality.ORIGINAL: "Original (Sin pérdida / Sin recodificar)",
     Quality.HIGH: "Alta (CRF 18 / 320 kbps)",
     Quality.MEDIUM: "Media (CRF 24 / 192 kbps)",
     Quality.LOW: "Baja (CRF 30 / 128 kbps)",

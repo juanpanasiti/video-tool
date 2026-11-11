@@ -6,6 +6,9 @@ Wires infrastructure into a shared AppState and starts the native UI window.
 from __future__ import annotations
 
 import asyncio
+import importlib.util
+import os
+import sys
 
 from nicegui import app, ui
 
@@ -42,6 +45,13 @@ def get_worker() -> QueueWorker:
     return _worker
 
 
+def _configure_linux_webview_backend() -> None:
+    """Default pywebview to Qt on Linux when PyGObject (gi) is unavailable."""
+    if sys.platform == "linux" and "PYWEBVIEW_GUI" not in os.environ:
+        if importlib.util.find_spec("gi") is None:
+            os.environ["PYWEBVIEW_GUI"] = "qt"
+
+
 def run(
     config: AppConfig,
     repository: IVideoRepository,
@@ -53,6 +63,7 @@ def run(
     video_metadata: IVideoMetadata,
     concatenator: IConcatenator,
     preferences: UserPreferences | None = None,
+    native: bool = True,
 ) -> None:
     """Wire dependencies and launch the NiceGUI native window."""
     global _state, _worker
@@ -75,11 +86,13 @@ def run(
 
     app.on_startup(lambda: asyncio.create_task(_worker.run_forever()))
 
+    if native:
+        _configure_linux_webview_backend()
+
     ui.run(
         title="Video Tool",
-        native=True,
+        native=native,
         window_size=(1100, 800),
         reload=False,
         dark=True,
     )
-

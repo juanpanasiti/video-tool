@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from domain.models import UserPreferences
-from main import load_config
+from main import _parse_args, load_config
 
 
 def _make_args(source: str | None = None, target: str | None = None) -> argparse.Namespace:
@@ -112,4 +112,20 @@ def test_nonexistent_preference_source_falls_back_to_cwd(
 
     assert config.source == Path.cwd().resolve()
     assert config.target == (Path.cwd().resolve() / "output").resolve()
+
+
+def test_parse_args_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sys.argv", ["vtool"])
+    args = _parse_args()
+    assert args.source is None
+    assert args.target is None
+    assert args.browser is False
+
+
+def test_parse_args_with_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sys.argv", ["vtool", "/my/videos", "--target", "/my/clips", "--browser"])
+    args = _parse_args()
+    assert args.source == "/my/videos"
+    assert args.target == "/my/clips"
+    assert args.browser is True
 

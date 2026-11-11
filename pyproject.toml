@@ -16,10 +16,19 @@ dependencies = [
     # iterable), which cascades into the Vue bundle failing to load. Pin below
     # that until upstream fixes it.
     "pywebview<6.2",
+    # On Linux, uv tool environments are isolated from system PyGObject/WebKitGTK.
+    # Bundle Qt 6.4.x WebEngine automatically so native mode works out of the box
+    # (Qt >= 6.5 requires system libxcb-cursor0 on X11; Qt 5 lacks import maps).
+    "PyQt6>=6.4.2,<6.5; sys_platform == 'linux'",
+    "PyQt6-Qt6>=6.4.3,<6.5; sys_platform == 'linux'",
+    "PyQt6-WebEngine>=6.4.0,<6.5; sys_platform == 'linux'",
+    "PyQt6-WebEngine-Qt6>=6.4.3,<6.5; sys_platform == 'linux'",
+    "qtpy>=2.4.0; sys_platform == 'linux'",
 ]
 
 [project.scripts]
 vtool = "main:main"
+video-tool = "main:main"
 
 [project.optional-dependencies]
 dev = [
@@ -37,7 +46,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["domain", "application", "infrastructure", "presentation"]
-include = ["main.py"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"main.py" = "main.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -58,7 +69,7 @@ check_untyped_defs = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["moviepy.*", "proglog.*", "nicegui.*", "plyer.*"]
+module = ["moviepy.*", "proglog.*", "nicegui.*", "plyer.*", "imageio_ffmpeg.*"]
 ignore_missing_imports = true
 
 [tool.importlinter]

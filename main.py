@@ -51,6 +51,11 @@ def _parse_args() -> argparse.Namespace:
         dest="target",
         help="Output folder for clips (default: <source>/output).",
     )
+    parser.add_argument(
+        "--browser",
+        action="store_true",
+        help="Open in default web browser instead of native desktop window.",
+    )
     return parser.parse_args()
 
 
@@ -142,6 +147,7 @@ def main() -> None:
             video_metadata=video_metadata,
             concatenator=concatenator,
             preferences=preferences,
+            native=not args.browser,
         )
     except KeyboardInterrupt:
         # asyncio/uvicorn re-raise this on Ctrl+C after internally cancelling the
